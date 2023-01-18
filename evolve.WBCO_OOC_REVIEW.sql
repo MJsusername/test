@@ -1,5 +1,4 @@
-ALTER VIEW evolve.WBCO_OOC_REVIEW
-AS 
+--ALTER VIEW evolve.WBCO_OOC_REVIEW AS 
 WITH 
 wellbore AS (
 SELECT Well_UID
@@ -71,7 +70,11 @@ LEFT JOIN (SELECT * from Wells
 WHERE WellName IS NULL
 ),
 WRPV_FINAL AS (
-SELECT WRPV.*, Start
+SELECT 
+    WRPV.*
+    , Start
+    , Development_Run__c AS Devrun
+    , ROW_Number() OVER(Partition by Adjusted_Parcel_Number ORDER By Start) AS row
 FROM Well_Related_Parcel_view WRPV
 RIGHT JOIN heart.r_schedule_milestones AS Milestones ON W_UID = Well_ID AND Milestone = 'Horizontal_Drilling' AND Start IS NOT Null
 RIGHT JOIN heart.sf_well_bore_dev_run_clearance__c AS wbco ON Well_ID = wbco.Related_Well_GIS_UID__c AND WBCOMacroStatus__c NOT LIKE ('3%') AND WBCOMacroStatus__c NOT LIKE ('4%')
@@ -109,6 +112,21 @@ SELECT Adjusted_Parcel_Number AS Parcel_Number
 FROM (SELECT DISTINCT Adjusted_Parcel_Number, WellName from WRPV_FINAL) T
 GROUP BY Adjusted_Parcel_Number
 ),
+devruns AS (
+SELECT Adjusted_Parcel_Number AS Parcel_Number
+	  ,STRING_AGG(cast(Devrun AS varchar(max)), ',')  AS Devruns
+FROM (SELECT DISTINCT Adjusted_Parcel_Number, Devrun from WRPV_FINAL) T
+GROUP BY Adjusted_Parcel_Number
+),
+devrun_dates AS (
+SELECT Adjusted_Parcel_Number AS Parcel_Number
+      ,Start AS Earliest_Devrun_Date
+      ,devrun AS Earliest_Devrun
+      ,WellName AS Earliest_Well
+FROM (SELECT DISTINCT Adjusted_Parcel_Number, WellName, Devrun, Start from WRPV_FINAL where row = 1) T
+)
+
+,
 date_info AS (
 SELECT Adjusted_Parcel_Number AS Parcel_Number
       ,MIN(Start) AS Earliest_Date
@@ -172,7 +190,7 @@ SELECT well_status.Parcel_Number
         ,MIN(Total_Parcel_Acreage) AS Parcel_Acreage
         ,MIN(Split_Parcel_Acreages) AS Split_Parcel_Acreages
 	  ,STRING_AGG(cast(Wellbore_Status AS varchar(max)), ',')  AS Wellbore_Statuses
-        ,MIN(CASE 
+      /*  ,MIN(CASE 
             WHEN Wellbore_Status = 'Air Curve' THEN '1'
             WHEN Wellbore_Status = 'Wellbore' THEN '1'
             WHEN Wellbore_Status = 'Non-wellbore' AND Total_Parcel_Acreage < '0.59' THEN '3'
@@ -198,14 +216,15 @@ SELECT well_status.Parcel_Number
             WHEN Title_Tracker_Type__c = 'Bringdown-Limited Scope' THEN '3'
             WHEN Title_Tracker_Type__c = 'NULL' THEN '4'
             ELSE '4'
-        END) AS Title_Rank_Available
+        END) AS Title_Rank_Available */
 FROM (select distinct Adjusted_Parcel_Number as Parcel_Number , Wellbore_Status from WRPV_FINAL) well_status
 LEFT JOIN date_info ON well_status.Parcel_Number = date_info.Parcel_Number
 LEFT JOIN wells_name ON well_status.Parcel_Number = wells_name.Parcel_Number
 LEFT JOIN parcel_acreage ON well_status.Parcel_Number = parcel_acreage.Parcel_Number
-LEFT JOIN title_tracker ON well_status.Parcel_Number = title_tracker.Parcel_Number
+LEFT JOIN devruns ON well_status.Parcel_Number = devruns.Parcel_Number
+--LEFT JOIN title_tracker ON well_status.Parcel_Number = title_tracker.Parcel_Number
 GROUP BY well_status.Parcel_Number
-),
+)/*,
 hist_cost AS (
 SELECT State__c
       ,County__c
@@ -217,7 +236,7 @@ WHERE Date_Ordered__c > '2020-01-01'
 GROUP BY State__c
       ,County__c
 	  ,Title_Tracker_Type__c
-)
+) */
 ,Title_Budget
 AS
 (
@@ -256,8 +275,8 @@ SELECT
   ,Wellbore_Statuses
   ,cast(Parcel_Acreage as float) AS Parcel_Acreage
   ,Split_Parcel_Acreages
-  ,Title_Needed
-  ,Title_Rank_Available
+  --,Title_Needed
+  --,Title_Rank_Available
   ,Unmodified_Parcels
   ,Wells
   ,HZ_Dates
@@ -265,7 +284,7 @@ SELECT
   ,OOC_Evaluation_Date
   ,OOC_Review_Date
   ,Short_Term_Target_Review_Date
-  ,CASE WHEN Title_Needed = Title_Rank_Available THEN 'No Title Needed'
+ /* ,CASE WHEN Title_Needed = Title_Rank_Available THEN 'No Title Needed'
         WHEN Title_Needed = '2' AND Title_Rank_Available = '1' THEN 'No Title Needed'
         WHEN Title_Needed = '3' AND Title_Rank_Available = '1' THEN 'No Title Needed'
         WHEN Title_Needed = '3' AND Title_Rank_Available = '2' THEN 'No Title Needed'
@@ -301,10 +320,10 @@ SELECT
         WHEN Title_Needed = '3' AND Title_Rank_Available = '4' THEN 1000
         WHEN Title_Needed = '3' AND Title_Rank_Available IS NULL THEN 1000
         ELSE 'I missed a combination of Title_Needed and Title_Rank_Available'
-   END AS Estimated_Cost
+   END AS Estimated_Cost */
 
 FROM parcel_info
-LEFT JOIN hist_cost ON CASE WHEN parcel_info.Parcel_Number LIKE ('42-003-%') THEN 'PA' 
+/*LEFT JOIN hist_cost ON CASE WHEN parcel_info.Parcel_Number LIKE ('42-003-%') THEN 'PA' 
 						    WHEN parcel_info.Parcel_Number LIKE ('42-051-%') THEN 'PA' 
 						    WHEN parcel_info.Parcel_Number LIKE ('42-059-%') THEN 'PA' 
 						    WHEN parcel_info.Parcel_Number LIKE ('42-081-%') THEN 'PA' 
@@ -334,7 +353,7 @@ LEFT JOIN hist_cost ON CASE WHEN parcel_info.Parcel_Number LIKE ('42-003-%') THE
 					   END = hist_cost.County__c
 				   AND hist_cost.Title_Tracker_Type__c = CASE WHEN Title_Needed = '1' AND Title_Rank_Available = '2' THEN 'Standup Title Opinion'
 														      WHEN Title_Needed = '2' THEN 'Standup Abstract'
-														 END
+														 END*/
 WHERE Earliest_Date IS NOT NULL
 )
 ,MTPP
@@ -466,7 +485,8 @@ FROM [heart].[sf_mineral_tract__c] AS mt
 LEFT JOIN [heart].[sf_mineral_tract_related_parcel__c] AS mtrp ON mt.Id = mtrp.Mineral_Tract__c
 WHERE Title_Workflow_Status__c <> 'Complete' AND mt.name NOT LIKE ('%Apportionment%')
 )
-
+, result AS
+(
 SELECT
     TB.State
     ,TB.County
@@ -476,6 +496,10 @@ SELECT
     ,TB.Wells
     ,TB.HZ_Dates
     ,TB.Earliest_Date
+    ,Earliest_Devrun_Date
+    ,Earliest_Devrun
+    ,Earliest_Well
+    ,Devruns
     --,TB.OOC_Evaluation_Date
     ,YEAR(TB.OOC_Review_Date) AS OOC_Review_Year
     ,TB.OOC_Review_Date
@@ -498,5 +522,9 @@ FROM Title_Budget AS TB
 LEFT JOIN ORPP ON ORPP.County = TB.County
 LEFT JOIN AOC ON TB.Parcel_Number IS NOT NULL
 LEFT JOIN Incomplete_MT ON Incomplete_MT.Parcel_Number = TB.Parcel_Number AND Incomplete_MT.row = 1
+LEFT JOIN devruns ON TB.Parcel_Number = devruns.Parcel_Number
+LEFT JOIN devrun_dates dd ON dd.Parcel_Number = TB.Parcel_Number
+)
 
-GO
+SELECT * FROM result WHERE Earliest_Devrun_date <> Earliest_Date
+--GO
