@@ -1,4 +1,4 @@
---ALTER VIEW evolve.WBCO_OOC_REVIEW AS 
+ALTER VIEW evolve.WBCO_OOC_REVIEW AS 
 WITH 
 wellbore AS (
 SELECT Well_UID
@@ -137,47 +137,6 @@ SELECT Adjusted_Parcel_Number AS Parcel_Number
 FROM (SELECT DISTINCT Adjusted_Parcel_Number, Start from WRPV_FINAL) T
 GROUP BY Adjusted_Parcel_Number
 ),
-title_tracker AS (
-SELECT *
-FROM 
-(SELECT CASE
-			WHEN GIS_EX_ID__c IS NULL AND County__c = 'Allegheny' THEN CONCAT('42-003-', Parcel_TEXT__c)
-			WHEN GIS_EX_ID__c IS NULL AND County__c = 'Fayette' THEN CONCAT('42-051-', Parcel_TEXT__c)
-			WHEN GIS_EX_ID__c IS NULL AND County__c = 'Greene' THEN CONCAT('42-059-', Parcel_TEXT__c)
-			WHEN GIS_EX_ID__c IS NULL AND County__c = 'Lycoming' THEN CONCAT('42-081-', Parcel_TEXT__c)
-			WHEN GIS_EX_ID__c IS NULL AND County__c = 'Sullivan' THEN CONCAT('42-113-', Parcel_TEXT__c)
-			WHEN GIS_EX_ID__c IS NULL AND County__c = 'Washington' THEN CONCAT('42-125-', Parcel_TEXT__c)
-			WHEN GIS_EX_ID__c IS NULL AND County__c = 'Westmoreland' THEN CONCAT('42-129-', Parcel_TEXT__c)
-			WHEN GIS_EX_ID__c IS NULL AND County__c = 'Marion' THEN CONCAT('54-049-', Parcel_TEXT__c)
-			WHEN GIS_EX_ID__c IS NULL AND County__c = 'Marshall' THEN CONCAT('54-051-', Parcel_TEXT__c)
-			WHEN GIS_EX_ID__c IS NULL AND County__c = 'Monongalia' THEN CONCAT('54-061-', Parcel_TEXT__c)
-			WHEN GIS_EX_ID__c IS NULL AND County__c = 'Wetzel' THEN CONCAT('54-103-', Parcel_TEXT__c)
-			WHEN GIS_EX_ID__c IS NULL AND County__c = 'Belmont' THEN CONCAT('39-013-', Parcel_TEXT__c)
-			WHEN GIS_EX_ID__c IS NULL AND State__c = 'WV' AND County__c = 'Harrison' THEN CONCAT('54-033-', Parcel_TEXT__c)
-            ELSE GIS_EX_ID__c 
-		END AS 'Parcel_Number'
-	   ,Title_Tracker_Type__c
-       ,ROW_NUMBER() OVER(PARTITION BY CASE
-			WHEN GIS_EX_ID__c IS NULL AND County__c = 'Allegheny' THEN CONCAT('42-003-', Parcel_TEXT__c)
-			WHEN GIS_EX_ID__c IS NULL AND County__c = 'Fayette' THEN CONCAT('42-051-', Parcel_TEXT__c)
-			WHEN GIS_EX_ID__c IS NULL AND County__c = 'Greene' THEN CONCAT('42-059-', Parcel_TEXT__c)
-			WHEN GIS_EX_ID__c IS NULL AND County__c = 'Lycoming' THEN CONCAT('42-081-', Parcel_TEXT__c)
-			WHEN GIS_EX_ID__c IS NULL AND County__c = 'Sullivan' THEN CONCAT('42-113-', Parcel_TEXT__c)
-			WHEN GIS_EX_ID__c IS NULL AND County__c = 'Washington' THEN CONCAT('42-125-', Parcel_TEXT__c)
-			WHEN GIS_EX_ID__c IS NULL AND County__c = 'Westmoreland' THEN CONCAT('42-129-', Parcel_TEXT__c)
-			WHEN GIS_EX_ID__c IS NULL AND County__c = 'Marion' THEN CONCAT('54-049-', Parcel_TEXT__c)
-			WHEN GIS_EX_ID__c IS NULL AND County__c = 'Marshall' THEN CONCAT('54-051-', Parcel_TEXT__c)
-			WHEN GIS_EX_ID__c IS NULL AND County__c = 'Monongalia' THEN CONCAT('54-061-', Parcel_TEXT__c)
-			WHEN GIS_EX_ID__c IS NULL AND County__c = 'Wetzel' THEN CONCAT('54-103-', Parcel_TEXT__c)
-			WHEN GIS_EX_ID__c IS NULL AND County__c = 'Belmont' THEN CONCAT('39-013-', Parcel_TEXT__c)
-			WHEN GIS_EX_ID__c IS NULL AND State__c = 'WV' AND County__c = 'Harrison' THEN CONCAT('54-033-', Parcel_TEXT__c)
-			ELSE GIS_EX_ID__c END ORDER BY Date_Ordered__c DESC, Title_Quality__c ASC) AS 'Row'
-FROM heart.sf_title_tracker__c
-WHERE Title_Quality__c IS NOT NULL
-  AND Title_Tracker_Type__c NOT IN ('Coal Title', 'Surface Title')
-) AS R
-WHERE ROW = 1
-),
 parcel_info AS (
 SELECT well_status.Parcel_Number
         ,MIN(Earliest_Date) AS Earliest_Date
@@ -189,54 +148,20 @@ SELECT well_status.Parcel_Number
 		,MIN(Unmodified_Parcels) AS Unmodified_Parcels
         ,MIN(Total_Parcel_Acreage) AS Parcel_Acreage
         ,MIN(Split_Parcel_Acreages) AS Split_Parcel_Acreages
+        ,MIN(Earliest_Devrun_Date) AS Earliest_Devrun_Date
+        ,MIN(Earliest_Devrun) AS Earliest_Devrun
+        ,MIN(Earliest_Well) AS Earliest_Well
+        ,STRING_AGG(Devruns,',') AS Devruns
 	  ,STRING_AGG(cast(Wellbore_Status AS varchar(max)), ',')  AS Wellbore_Statuses
-      /*  ,MIN(CASE 
-            WHEN Wellbore_Status = 'Air Curve' THEN '1'
-            WHEN Wellbore_Status = 'Wellbore' THEN '1'
-            WHEN Wellbore_Status = 'Non-wellbore' AND Total_Parcel_Acreage < '0.59' THEN '3'
-            WHEN Wellbore_Status = 'Non-wellbore' THEN '2'
-         END) AS Title_Needed
-		,MIN(CASE
-            WHEN Title_Tracker_Type__c = 'Certified' THEN '1'
-            WHEN Title_Tracker_Type__c = 'Bringdown-Certified' THEN '1'
-            WHEN Title_Tracker_Type__c = 'Limited Scope' THEN '4'
-            WHEN Title_Tracker_Type__c = 'Targeted Scope Abstract' THEN '2'
-            WHEN Title_Tracker_Type__c = 'Standup Title Opinion' THEN '1'
-            WHEN Title_Tracker_Type__c = 'Coal Title' THEN '4'
-            WHEN Title_Tracker_Type__c = 'Standup Abstract' THEN '2'
-            WHEN Title_Tracker_Type__c = 'Revision' THEN '1'
-            WHEN Title_Tracker_Type__c = 'Limited Scope-Abstract' THEN '3'
-            WHEN Title_Tracker_Type__c = 'Quarter - SUTO' THEN '3'
-            WHEN Title_Tracker_Type__c = 'Full Landman' THEN '3'
-            WHEN Title_Tracker_Type__c = 'Abstract' THEN '2'
-            WHEN Title_Tracker_Type__c = 'Ownership Report' THEN '3'
-            WHEN Title_Tracker_Type__c = 'In House Bringdown' THEN '3'
-            WHEN Title_Tracker_Type__c = 'Bringdown-Abstract' THEN '2'
-            WHEN Title_Tracker_Type__c = 'Upgrade' THEN '1'
-            WHEN Title_Tracker_Type__c = 'Bringdown-Limited Scope' THEN '3'
-            WHEN Title_Tracker_Type__c = 'NULL' THEN '4'
-            ELSE '4'
-        END) AS Title_Rank_Available */
+
 FROM (select distinct Adjusted_Parcel_Number as Parcel_Number , Wellbore_Status from WRPV_FINAL) well_status
 LEFT JOIN date_info ON well_status.Parcel_Number = date_info.Parcel_Number
 LEFT JOIN wells_name ON well_status.Parcel_Number = wells_name.Parcel_Number
 LEFT JOIN parcel_acreage ON well_status.Parcel_Number = parcel_acreage.Parcel_Number
 LEFT JOIN devruns ON well_status.Parcel_Number = devruns.Parcel_Number
---LEFT JOIN title_tracker ON well_status.Parcel_Number = title_tracker.Parcel_Number
+LEFT JOIN devrun_dates dd ON dd.Parcel_Number = well_status.Parcel_Number
 GROUP BY well_status.Parcel_Number
-)/*,
-hist_cost AS (
-SELECT State__c
-      ,County__c
-	  ,Title_Tracker_Type__c
-	  ,ROUND(AVG(Title_Cost__c),2) AS Title_Cost
-FROM [heart].[sf_title_tracker__c]
-WHERE Date_Ordered__c > '2020-01-01'
-  AND Title_Tracker_Type__c IN ('Standup Title Opinion', 'Standup Abstract')
-GROUP BY State__c
-      ,County__c
-	  ,Title_Tracker_Type__c
-) */
+)
 ,Title_Budget
 AS
 (
@@ -275,8 +200,7 @@ SELECT
   ,Wellbore_Statuses
   ,cast(Parcel_Acreage as float) AS Parcel_Acreage
   ,Split_Parcel_Acreages
-  --,Title_Needed
-  --,Title_Rank_Available
+
   ,Unmodified_Parcels
   ,Wells
   ,HZ_Dates
@@ -284,76 +208,13 @@ SELECT
   ,OOC_Evaluation_Date
   ,OOC_Review_Date
   ,Short_Term_Target_Review_Date
- /* ,CASE WHEN Title_Needed = Title_Rank_Available THEN 'No Title Needed'
-        WHEN Title_Needed = '2' AND Title_Rank_Available = '1' THEN 'No Title Needed'
-        WHEN Title_Needed = '3' AND Title_Rank_Available = '1' THEN 'No Title Needed'
-        WHEN Title_Needed = '3' AND Title_Rank_Available = '2' THEN 'No Title Needed'
-        WHEN Title_Needed = '1' AND Title_Rank_Available = '2' THEN 'Convert abstract to opinion'
-        WHEN Title_Needed = '2' AND Title_Rank_Available = '3' THEN 'Order Standup Abstract'
-        WHEN Title_Needed = '2' AND Title_Rank_Available = '4' THEN 'Order Standup Abstract'
-        WHEN Title_Needed = '1' AND Title_Rank_Available IS NULL THEN 'Order Standup Opinion'
-        WHEN Title_Needed = '1' AND Title_Rank_Available = '3' THEN 'Order Standup Opinion'
-        WHEN Title_Needed = '1' AND Title_Rank_Available = '4' THEN 'Order Standup Opinion'
-        WHEN Title_Needed = '2' AND Title_Rank_Available IS NULL THEN 'Order Standup Abstract'
-        WHEN Title_Needed = '3' AND Title_Rank_Available = '4' THEN 'Order Quarter SUTO'
-        WHEN Title_Needed = '3' AND Title_Rank_Available IS NULL THEN 'Order Quarter SUTO'
-        WHEN Title_Needed = '3' AND Title_Rank_Available = '1' THEN 'No Title Needed'
-        WHEN Title_Needed = '3' AND Title_Rank_Available = '2' THEN 'No Title Needed'
-        ELSE 'I missed a combination of Title_Needed and Title_Rank_Available'
-   END AS Title_Order_Action
-  ,CAST(CASE WHEN Title_Needed = '1' AND Title_Rank_Available = '2' THEN Title_Cost/2
-             WHEN Title_Needed = '3' THEN 800                    
-             ELSE Title_Cost
-        END AS DECIMAL(8,2)) AS Historic_Average_Cost
-  ,CASE WHEN Title_Needed = Title_Rank_Available THEN 0
-        WHEN Title_Needed > Title_Rank_Available THEN 0
-        WHEN Title_Needed = '2' AND Title_Rank_Available = '1' THEN 0
-        WHEN Title_Needed = '3' AND Title_Rank_Available = '1' THEN 0
-        WHEN Title_Needed = '3' AND Title_Rank_Available = '2' THEN 0
-        WHEN Title_Needed = '1' AND Title_Rank_Available = '2' THEN 3000
-        WHEN Title_Needed = '2' AND Title_Rank_Available = '3' THEN 3000
-        WHEN Title_Needed = '2' AND Title_Rank_Available = '4' THEN 3000
-        WHEN Title_Needed = '1' AND Title_Rank_Available IS NULL THEN 6000
-        WHEN Title_Needed = '1' AND Title_Rank_Available = '3' THEN 6000
-        WHEN Title_Needed = '1' AND Title_Rank_Available = '4' THEN 6000
-        WHEN Title_Needed = '2' AND Title_Rank_Available IS NULL THEN 3000
-        WHEN Title_Needed = '3' AND Title_Rank_Available = '4' THEN 1000
-        WHEN Title_Needed = '3' AND Title_Rank_Available IS NULL THEN 1000
-        ELSE 'I missed a combination of Title_Needed and Title_Rank_Available'
-   END AS Estimated_Cost */
+      ,parcel_info.Earliest_Devrun_Date
+    ,parcel_info.Earliest_Devrun
+    ,parcel_info.Earliest_Well
+    ,parcel_info.Devruns
+
 
 FROM parcel_info
-/*LEFT JOIN hist_cost ON CASE WHEN parcel_info.Parcel_Number LIKE ('42-003-%') THEN 'PA' 
-						    WHEN parcel_info.Parcel_Number LIKE ('42-051-%') THEN 'PA' 
-						    WHEN parcel_info.Parcel_Number LIKE ('42-059-%') THEN 'PA' 
-						    WHEN parcel_info.Parcel_Number LIKE ('42-081-%') THEN 'PA' 
-			    		    WHEN parcel_info.Parcel_Number LIKE ('42-113-%') THEN 'PA' 
-						    WHEN parcel_info.Parcel_Number LIKE ('42-125-%') THEN 'PA' 
-						    WHEN parcel_info.Parcel_Number LIKE ('42-129-%') THEN 'PA' 
-						    WHEN parcel_info.Parcel_Number LIKE ('54-049-%') THEN 'WV'
-						    WHEN parcel_info.Parcel_Number LIKE ('54-051-%') THEN 'WV'
-						    WHEN parcel_info.Parcel_Number LIKE ('54-061-%') THEN 'WV'
-						    WHEN parcel_info.Parcel_Number LIKE ('54-103-%') THEN 'WV'
-						    WHEN parcel_info.Parcel_Number LIKE ('39-013-%') THEN 'OH'
-                            WHEN parcel_info.Parcel_Number LIKE ('42-035-%') THEN 'PA'
-					    END = hist_cost.State__c 
-				   AND CASE WHEN parcel_info.Parcel_Number LIKE ('42-003-%') THEN 'Allegheny' 
-						    WHEN parcel_info.Parcel_Number LIKE ('42-051-%') THEN 'Fayette' 
-						    WHEN parcel_info.Parcel_Number LIKE ('42-059-%') THEN 'Greene' 
-						    WHEN parcel_info.Parcel_Number LIKE ('42-125-%') THEN 'Washington' 
-						    WHEN parcel_info.Parcel_Number LIKE ('42-129-%') THEN 'Westmoreland' 
-						    WHEN parcel_info.Parcel_Number LIKE ('54-049-%') THEN 'Marion'
-						    WHEN parcel_info.Parcel_Number LIKE ('54-051-%') THEN 'Marshall'
-						    WHEN parcel_info.Parcel_Number LIKE ('54-061-%') THEN 'Monongalia'
-						    WHEN parcel_info.Parcel_Number LIKE ('54-103-%') THEN 'Wetzel'
-						    WHEN parcel_info.Parcel_Number LIKE ('42-113-%') THEN 'Sullivan'
-						    WHEN parcel_info.Parcel_Number LIKE ('42-081-%') THEN 'Lycoming'
-						    WHEN parcel_info.Parcel_Number LIKE ('39-013-%') THEN 'Belmont'
-                            WHEN parcel_info.Parcel_Number LIKE ('42-035-%') THEN 'Clinton' 
-					   END = hist_cost.County__c
-				   AND hist_cost.Title_Tracker_Type__c = CASE WHEN Title_Needed = '1' AND Title_Rank_Available = '2' THEN 'Standup Title Opinion'
-														      WHEN Title_Needed = '2' THEN 'Standup Abstract'
-														 END*/
 WHERE Earliest_Date IS NOT NULL
 )
 ,MTPP
@@ -522,9 +383,9 @@ FROM Title_Budget AS TB
 LEFT JOIN ORPP ON ORPP.County = TB.County
 LEFT JOIN AOC ON TB.Parcel_Number IS NOT NULL
 LEFT JOIN Incomplete_MT ON Incomplete_MT.Parcel_Number = TB.Parcel_Number AND Incomplete_MT.row = 1
-LEFT JOIN devruns ON TB.Parcel_Number = devruns.Parcel_Number
-LEFT JOIN devrun_dates dd ON dd.Parcel_Number = TB.Parcel_Number
+--LEFT JOIN devruns ON TB.Parcel_Number = devruns.Parcel_Number
+--LEFT JOIN devrun_dates dd ON dd.Parcel_Number = TB.Parcel_Number
 )
 
-SELECT * FROM result WHERE Earliest_Devrun_date <> Earliest_Date
---GO
+SELECT * FROM result-- WHERE Earliest_Devrun_date <> Earliest_Date
+GO

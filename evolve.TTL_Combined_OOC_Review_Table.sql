@@ -15,6 +15,10 @@ WITH combined AS
     ,   Wells
     ,   TIL_Dates AS Dates
     ,   Earliest_Date
+    ,   Earliest_Devrun_Date
+    ,   Earliest_Devrun
+    ,   Earliest_Well
+    ,   Devruns
     ,   OOC_Review_Year
     ,   OOC_Review_Date
     ,   Average_ORs_Per_Parcel
@@ -35,6 +39,10 @@ SELECT
     ,   Wells
     ,   HZ_Dates AS Dates
     ,   Earliest_Date
+    ,   Earliest_Devrun_Date
+    ,   Earliest_Devrun
+    ,   Earliest_Well
+    ,   Devruns
     ,   OOC_Review_Year
     ,   OOC_Review_Date
     ,   Average_ORs_Per_Parcel
@@ -55,6 +63,10 @@ SELECT
     ,   cm.Wells
     ,   cm.Dates
     ,   cm.Earliest_Date
+    ,   cm.Earliest_Devrun_Date
+    ,   cm.Earliest_Devrun
+    ,   cm.Earliest_Well
+    ,   cm.Devruns
     ,   cm.OOC_Review_Year
     ,   cm.OOC_Review_Date
     ,   CASE WHEN cm.Average_ORs_Per_Parcel IS NULL Then cm2.Average_ORs_Per_Parcel ELSE cm.Average_ORs_Per_Parcel END AS Average_ORs_Per_Parcel 
